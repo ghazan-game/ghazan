@@ -28,7 +28,7 @@ export class GameState {
 
   constructor(
     game: Game,
-    pathCoordinates: TileCoordinate[],
+    initialPathCoordinates: TileCoordinate[],
     startCoordinate: TileCoordinate,
     renderedChunksCount: number,
   ) {
@@ -36,33 +36,46 @@ export class GameState {
     this.tileContainer = new Container({
       x: game.config.minGameTilePaddingLeft * game.config.pixelSize,
     });
+    this.addTilesForInitialMazePaths(game, initialPathCoordinates);
+    this.addTilesForMazeEntrance(startCoordinate, game);
+    this.startCoordinate = startCoordinate;
+    this.currentCoordinate = startCoordinate;
+    this.renderedChunksCount = renderedChunksCount;
+
+    this.gameLoopListener = () => this.gameLoop();
+    game.app.ticker.add(this.gameLoopListener);
+  }
+
+  private addTilesForInitialMazePaths(game: Game, initialPathCoordinates: TileCoordinate[]) {
     const minY = 1;
     const maxY = game.config.chunkCellsPerGrid * 2;
     const minX = 1;
-    const maxX = Math.max(...pathCoordinates.map(([x]) => x)) + 1;
+    const maxX = Math.max(...initialPathCoordinates.map(([x]) => x)) + 1;
     for (let x = minX; x < maxX; x++) {
       for (let y = minY; y < maxY; y++) {
-        const isPath = pathCoordinates.some(
-          ([pathX, pathY]) => pathX === x && pathY === y,
+        const isPath = initialPathCoordinates.some(
+            ([pathX, pathY]) => pathX === x && pathY === y,
         );
         const tile = new Tile(x, y, isPath, game.config);
         this.addTile(tile);
       }
     }
+  }
 
+  private addTilesForMazeEntrance(startCoordinate: [number, number], game: Game) {
     const circleCenterX = -this.game.config.minGameTilePaddingLeft;
     const circleCenterY = this.game.config.chunkCellsPerGrid - 1;
     const circleRadius =
-      this.game.config.minGameTilePaddingLeft -
-      this.game.config.lavaStartOffset;
+        this.game.config.minGameTilePaddingLeft -
+        this.game.config.lavaStartOffset;
 
     for (let x = -this.game.config.minGameTilePaddingLeft; x <= 0; x++) {
       for (let y = 1; y < this.game.config.chunkCellsPerGrid * 2; y++) {
         let isPath = false;
         if (
-          Math.pow(x - circleCenterX, 2) + Math.pow(y - circleCenterY, 2) <=
+            Math.pow(x - circleCenterX, 2) + Math.pow(y - circleCenterY, 2) <=
             Math.pow(circleRadius, 2) ||
-          y === startCoordinate[1]
+            y === startCoordinate[1]
         ) {
           isPath = true;
         }
@@ -71,12 +84,6 @@ export class GameState {
         this.addTile(tile);
       }
     }
-    this.startCoordinate = startCoordinate;
-    this.currentCoordinate = startCoordinate;
-    this.renderedChunksCount = renderedChunksCount;
-
-    this.gameLoopListener = () => this.gameLoop();
-    game.app.ticker.add(this.gameLoopListener);
   }
 
   private gameLoop() {
@@ -132,63 +139,18 @@ export class GameState {
       this.wordGeneration.renderNextWords(this.startCoordinate, null, i);
     }
 
-    setTimeout(() => {
-      let initialLavaFields = [];
-      const circleCenterX = -this.game.config.minGameTilePaddingLeft;
-      const circleCenterY = this.game.config.chunkCellsPerGrid - 1;
-      const circleRadius =
-        this.game.config.minGameTilePaddingLeft -
-        this.game.config.lavaStartOffset;
-      const x = -this.game.config.minGameTilePaddingLeft;
-      for (let y = 0; y < this.game.config.chunkCellsPerGrid * 2; y++) {
-        let tile = this.findTile(x, y);
-        if (tile === null) {
-          tile = new Tile(x, y, true, this.game.config, true);
-          this.tileContainer.addChild(tile.graphics);
-          continue;
-        }
-        if (
-          Math.pow(x - circleCenterX, 2) + Math.pow(y - circleCenterY, 2) <=
-          Math.pow(circleRadius, 2)
-        ) {
-          initialLavaFields.push([x, y]);
-        }
-      }
+    this.addInitialLavaFields();
+    this.startSpreadingLavaBasedOnPlayerDistance();
+    this.startCameraFollowingPlayer();
+  }
 
-      for (let [x, y] of initialLavaFields) {
-        const tile = this.findTile(x, y);
-        if (tile === null) {
-          console.warn(`Tile at ${x},${y} not found`);
-          continue;
-        }
-        tile?.convertToLava();
-      }
-
-      let lastLavaTime = Date.now();
-      let distanceWithLavaBaseSpeed = Math.max(
-        this.game.config.maxGameTilePaddingLeft - 5,
-        5,
-      );
-      let moveLavaListener = () => {
-        const now = Date.now();
-        const timeDelta = now - lastLavaTime;
-        const lavaSpeed = this.computeLavaSpeed(distanceWithLavaBaseSpeed);
-        const lavaMoveTime = 800 / lavaSpeed;
-        if (timeDelta > lavaMoveTime) {
-          lastLavaTime = now;
-          this.spreadLava();
-          this.checkIfPlayerIsDead();
-        }
-      };
-      this.game.app.ticker.add(moveLavaListener);
-      this.moveLavaListener = moveLavaListener;
-    }, 0);
+  private startCameraFollowingPlayer() {
     this.cameraFollowIntervalId = setInterval(() => {
       const currentMinVisibleX =
-        -this.tileContainer.position.x / this.game.config.pixelSize;
+          -this.tileContainer.position.x / this.game.config.pixelSize;
       const xToRemoveBefore = currentMinVisibleX - 200;
       const tilesToRemove = [...this.tiles.values()].filter(
-        (tile) => tile.x < xToRemoveBefore,
+          (tile) => tile.x < xToRemoveBefore,
       );
       for (let tile of tilesToRemove) {
         tile.destroy();
@@ -196,10 +158,64 @@ export class GameState {
       }
     }, 1000);
     let centerGameListener = (ticker: Ticker) => {
-      this.tryToCenterGame(ticker);
+      this.centerGameCamera(ticker);
     };
     this.game.app.ticker.add(centerGameListener);
     this.centerGameListener = centerGameListener;
+  }
+
+  private startSpreadingLavaBasedOnPlayerDistance() {
+    let lastLavaTime = Date.now();
+    let distanceWithLavaBaseSpeed = Math.max(
+        this.game.config.maxGameTilePaddingLeft - 5,
+        5,
+    );
+    let moveLavaListener = () => {
+      const now = Date.now();
+      const timeDelta = now - lastLavaTime;
+      const lavaSpeed = this.computeLavaSpeed(distanceWithLavaBaseSpeed);
+      const lavaMoveTime = 800 / lavaSpeed;
+      if (timeDelta > lavaMoveTime) {
+        lastLavaTime = now;
+        this.spreadLava();
+        this.checkIfPlayerIsDead();
+      }
+    };
+    this.game.app.ticker.add(moveLavaListener);
+    this.moveLavaListener = moveLavaListener;
+  }
+
+  private addInitialLavaFields() {
+    let initialLavaFields = [];
+    const circleCenterX = -this.game.config.minGameTilePaddingLeft;
+    const circleCenterY = this.game.config.chunkCellsPerGrid - 1;
+    const circleRadius =
+        this.game.config.minGameTilePaddingLeft -
+        this.game.config.lavaStartOffset;
+    const x = -this.game.config.minGameTilePaddingLeft;
+    for (let y = 0; y < this.game.config.chunkCellsPerGrid * 2; y++) {
+      let tile = this.findTile(x, y);
+      if (tile === null) {
+        tile = new Tile(x, y, true, this.game.config, true);
+        this.tileContainer.addChild(tile.graphics);
+        continue;
+      }
+      if (
+          Math.pow(x - circleCenterX, 2) + Math.pow(y - circleCenterY, 2) <=
+          Math.pow(circleRadius, 2)
+      ) {
+        initialLavaFields.push([x, y]);
+      }
+    }
+
+    for (let [x, y] of initialLavaFields) {
+      const tile = this.findTile(x, y);
+      if (tile === null) {
+        console.warn(`Tile at ${x},${y} not found`);
+        continue;
+      }
+      tile?.convertToLava();
+    }
   }
 
   findTile(x: number, y: number) {
@@ -229,7 +245,7 @@ export class GameState {
     return 1.1 ** bufferedDistance * baseSpeed;
   }
 
-  private tryToCenterGame(ticker: Ticker) {
+  private centerGameCamera(ticker: Ticker) {
     const playerPixelX = this.currentCoordinate[0] * this.game.config.pixelSize;
     const borderPadding = playerPixelX + this.tileContainer.position.x;
     const minPaddingPx =
@@ -404,12 +420,6 @@ export class GameState {
 
   convertCoordinatesToIndex(x: number, y: number) {
     return x * (this.game.config.chunkCellsPerGrid * 2 + 1) + y;
-  }
-
-  convertIndexToCoordinates(index: number) {
-    const y = index % (this.game.config.chunkCellsPerGrid * 2 + 1);
-    const x = (index - y) / (this.game.config.chunkCellsPerGrid * 2 + 1);
-    return [x, y];
   }
 
   onPlayerDeath(listener: (score: number) => void) {
