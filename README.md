@@ -25,7 +25,7 @@ That's it, now you can play!
 
 This game is web-based and can be played directly in the browser.
 
-[Click Here to Play](https://ludams.github.io/ghazan/)
+[Click Here to Play](https://ghazan-game.github.io/ghazan/)
 
 ## Background
 
