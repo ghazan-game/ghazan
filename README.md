@@ -1,4 +1,4 @@
-# Ghazan
+# Ghazan – Browser-based Typing Game
 
 ![output](https://github.com/user-attachments/assets/98006cf4-1363-46c2-b115-358236443b31)
 
