@@ -93,7 +93,9 @@ export class GridChunk {
   }
 
   private buildCorridorsWithRandomizedDfs() {
-    let initialCell = this.grid[0][0];
+    let initialLocalX = Math.floor(this.rng() * this.config.chunkCellsPerGrid);
+    let initialLocalY = Math.floor(this.rng() * this.config.chunkCellsPerGrid);
+    let initialCell = this.grid[initialLocalX][initialLocalY];
     initialCell.visit();
 
     let lfsNeighborsToVisitStack = [initialCell];
