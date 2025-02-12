@@ -19,7 +19,7 @@ You are the green pixel.\
 You move forward by typing the characters/words next to you. In the picture above, you could start typing the characters `e`, `q`, `u`, `a` and `t` to move downwards or `s`, `h`, `e`, `r` and `i` to move upwards.
 Empty pixels between words can be crossed by typing ⎵ (Space).
 
-If you get stuck in a dead end or just want to go back, press ⌫ (Backspace) like you would normally delete characters.
+If you get stuck in a dead end or just want to go back, press ⌫ (Backspace) like you would normally delete characters. If the lava melted you, refresh the page to try again.
 
 That's it, now you can play!
 
