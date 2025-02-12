@@ -174,7 +174,7 @@ export class GameState {
       const now = Date.now();
       const timeDelta = now - lastLavaTime;
       const lavaSpeed = this.computeLavaSpeed(distanceWithLavaBaseSpeed);
-      const lavaMoveTime = 800 / lavaSpeed;
+      const lavaMoveTime = 1000 / lavaSpeed;
       if (timeDelta > lavaMoveTime) {
         lastLavaTime = now;
         this.spreadLava();
@@ -240,9 +240,19 @@ export class GameState {
       distanceToLava - lavaDistanceWithBaseSpeed,
       0,
     );
-    const baseSpeed = playerX <= 0 ? 1 : (playerX + 9) / 50;
 
-    return 1.1 ** bufferedDistance * baseSpeed;
+    // playerX = 1 => WPM = 9
+    // playerX = 50 => WPM = 32
+    // playerX = 100 => WPM = 40
+    // playerX = 800 => WPM = 60
+    // playerX = 3200 => WPM = 73
+    const wordsPerMinute = 10 * Math.log(0.5 * playerX + 2);
+
+    const wpmInCpm = 5; // 1 WPM = 5 CPM
+    const secondsInMinute = 60;
+    const speedInCharactersPerSecond = wordsPerMinute * wpmInCpm / secondsInMinute;
+
+    return 1.1 ** bufferedDistance * speedInCharactersPerSecond;
   }
 
   private centerGameCamera(ticker: Ticker) {
